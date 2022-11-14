@@ -43,11 +43,6 @@
 // Format is used by a number of functions, so made as a file global
 static struct v4l2_format fmt;
 
-enum io_method
-{
-    IO_METHOD_MMAP
-};
-
 struct buffer
 {
     void *start;
@@ -55,7 +50,6 @@ struct buffer
 };
 
 static char *dev_name;
-static enum io_method io = IO_METHOD_MMAP;
 static int fd = -1;
 struct buffer *buffers;
 static unsigned int n_buffers;
@@ -72,13 +66,11 @@ static void errno_exit(const char *s)
 static int xioctl(int fh, int request, void *arg)
 {
     int r;
-
     do
     {
         r = ioctl(fh, request, arg);
 
     } while (-1 == r && EINTR == errno);
-
     return r;
 }
 
@@ -191,7 +183,7 @@ static void process_image(const void *p, int size)
             yuv2rgb(y_temp, u_temp, v_temp, &bigbuffer[newi], &bigbuffer[newi + 1], &bigbuffer[newi + 2]);
             yuv2rgb(y2_temp, u_temp, v_temp, &bigbuffer[newi + 3], &bigbuffer[newi + 4], &bigbuffer[newi + 5]);
         }
-        dump_ppm(bigbuffer, ((size*6)/4), framecnt, &frame_time);
+        dump_ppm(bigbuffer, ((size * 6) / 4), framecnt, &frame_time);
     }
 
     else
@@ -209,42 +201,36 @@ static int read_frame(void)
     struct v4l2_buffer buf;
     unsigned int i;
 
-    switch (io)
+    CLEAR(buf);
+
+    buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+    buf.memory = V4L2_MEMORY_MMAP;
+
+    if (-1 == xioctl(fd, VIDIOC_DQBUF, &buf))
     {
-
-    case IO_METHOD_MMAP:
-        CLEAR(buf);
-
-        buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-        buf.memory = V4L2_MEMORY_MMAP;
-
-        if (-1 == xioctl(fd, VIDIOC_DQBUF, &buf))
+        switch (errno)
         {
-            switch (errno)
-            {
-            case EAGAIN:
-                return 0;
+        case EAGAIN:
+            return 0;
 
-            case EIO:
-                /* Could ignore EIO, but drivers should only set for serious errors, although some set for
-                   non-fatal errors too.
-                 */
-                return 0;
+        case EIO:
+            /* Could ignore EIO, but drivers should only set for serious errors, although some set for
+               non-fatal errors too.
+             */
+            return 0;
 
-            default:
-                printf("mmap failure\n");
-                errno_exit("VIDIOC_DQBUF");
-            }
+        default:
+            printf("mmap failure\n");
+            errno_exit("VIDIOC_DQBUF");
         }
-
-        assert(buf.index < n_buffers);
-
-        process_image(buffers[buf.index].start, buf.bytesused);
-
-        if (-1 == xioctl(fd, VIDIOC_QBUF, &buf))
-            errno_exit("VIDIOC_QBUF");
-        break;
     }
+
+    assert(buf.index < n_buffers);
+
+    process_image(buffers[buf.index].start, buf.bytesused);
+
+    if (-1 == xioctl(fd, VIDIOC_QBUF, &buf))
+        errno_exit("VIDIOC_QBUF");
 
     // printf("R");
     return 1;
@@ -316,14 +302,9 @@ static void stop_capturing(void)
 {
     enum v4l2_buf_type type;
 
-    switch (io)
-    {
-    case IO_METHOD_MMAP:
-        type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-        if (-1 == xioctl(fd, VIDIOC_STREAMOFF, &type))
-            errno_exit("VIDIOC_STREAMOFF");
-        break;
-    }
+    type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+    if (-1 == xioctl(fd, VIDIOC_STREAMOFF, &type))
+        errno_exit("VIDIOC_STREAMOFF");
 }
 
 static void start_capturing(void)
@@ -331,44 +312,33 @@ static void start_capturing(void)
     unsigned int i;
     enum v4l2_buf_type type;
 
-    switch (io)
+    for (i = 0; i < n_buffers; ++i)
     {
+        printf("allocated buffer %d\n", i);
+        struct v4l2_buffer buf;
 
-    case IO_METHOD_MMAP:
-        for (i = 0; i < n_buffers; ++i)
-        {
-            printf("allocated buffer %d\n", i);
-            struct v4l2_buffer buf;
+        CLEAR(buf);
+        buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+        buf.memory = V4L2_MEMORY_MMAP;
+        buf.index = i;
 
-            CLEAR(buf);
-            buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-            buf.memory = V4L2_MEMORY_MMAP;
-            buf.index = i;
-
-            if (-1 == xioctl(fd, VIDIOC_QBUF, &buf))
-                errno_exit("VIDIOC_QBUF");
-        }
-        type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-        if (-1 == xioctl(fd, VIDIOC_STREAMON, &type))
-            errno_exit("VIDIOC_STREAMON");
-        break;
+        if (-1 == xioctl(fd, VIDIOC_QBUF, &buf))
+            errno_exit("VIDIOC_QBUF");
     }
+    type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+    if (-1 == xioctl(fd, VIDIOC_STREAMON, &type))
+        errno_exit("VIDIOC_STREAMON");
 }
 
 static void uninit_device(void)
 {
     unsigned int i;
 
-    switch (io)
-    {
-    case IO_METHOD_MMAP:
-        for (i = 0; i < n_buffers; ++i)
-            if (-1 == munmap(buffers[i].start, buffers[i].length))
-                errno_exit("munmap");
-        break;
+    for (i = 0; i < n_buffers; ++i)
+        if (-1 == munmap(buffers[i].start, buffers[i].length))
+            errno_exit("munmap");
 
-        free(buffers);
-    }
+    free(buffers);
 }
 
 static void init_mmap(void)
@@ -464,17 +434,11 @@ static void init_device(void)
         exit(EXIT_FAILURE);
     }
 
-    switch (io)
+    if (!(cap.capabilities & V4L2_CAP_STREAMING))
     {
-
-    case IO_METHOD_MMAP:
-        if (!(cap.capabilities & V4L2_CAP_STREAMING))
-        {
-            fprintf(stderr, "%s does not support streaming i/o\n",
-                    dev_name);
-            exit(EXIT_FAILURE);
-        }
-        break;
+        fprintf(stderr, "%s does not support streaming i/o\n",
+                dev_name);
+        exit(EXIT_FAILURE);
     }
 
     /* Select video input, video standard and tune here. */
@@ -515,12 +479,11 @@ static void init_device(void)
         printf("FORCING FORMAT\n");
         fmt.fmt.pix.width = HRES;
         fmt.fmt.pix.height = VRES;
-        fmt.fmt.pix.pixelformat = V4L2_PIX_FMT_YUYV;  
+        fmt.fmt.pix.pixelformat = V4L2_PIX_FMT_YUYV;
         fmt.fmt.pix.field = V4L2_FIELD_NONE;
 
         if (-1 == xioctl(fd, VIDIOC_S_FMT, &fmt))
             errno_exit("VIDIOC_S_FMT");
-
     }
     else
     {
@@ -538,13 +501,7 @@ static void init_device(void)
     if (fmt.fmt.pix.sizeimage < min)
         fmt.fmt.pix.sizeimage = min;
 
-    switch (io)
-    {
-
-    case IO_METHOD_MMAP:
-        init_mmap();
-        break;
-    }
+    init_mmap();
 }
 
 static void close_device(void)
