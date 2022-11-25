@@ -1,3 +1,6 @@
 *.o
 capture_code/seq
 
+capture_code/frames/*.ppm
+capture_server/seq
+capture_server/server

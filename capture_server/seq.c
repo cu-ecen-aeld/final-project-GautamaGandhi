@@ -28,6 +28,11 @@
 #include <sys/time.h>
 #include <sys/mman.h>
 #include <sys/ioctl.h>
+#include "seq.h"
+
+#define DUMP_IMAGE
+#define STB_IMAGE_RESIZE_IMPLEMENTATION
+#include "stb_image_resize.h"
 
 #include <linux/videodev2.h>
 
@@ -37,8 +42,8 @@
 #define COLOR_CONVERT
 #define HRES 320
 #define VRES 240
-#define HRES_STR "320"
-#define VRES_STR "240"
+#define HRES_STR "16"
+#define VRES_STR "16"
 
 // Format is used by a number of functions, so made as a file global
 static struct v4l2_format fmt;
@@ -49,13 +54,14 @@ struct buffer
     size_t length;
 };
 
-static char *dev_name;
+char *dev_name = "/dev/video0";
 static int fd = -1;
 struct buffer *buffers;
 static unsigned int n_buffers;
 static int out_buf;
 static int force_format = 1;
 static int frame_count = 10;
+
 
 static void errno_exit(const char *s)
 {
@@ -77,7 +83,7 @@ static int xioctl(int fh, int request, void *arg)
 char ppm_header[] = "P6\n#9999999999 sec 9999999999 msec \n" HRES_STR " " VRES_STR "\n255\n";
 char ppm_dumpname[] = "frames/test00000000.ppm";
 
-static void dump_ppm(const void *p, int size, unsigned int tag, struct timespec *time)
+void dump_ppm(const void *p, int size, unsigned int tag, struct timespec *time)
 {
     int written, i, total, dumpfd;
 
@@ -154,7 +160,8 @@ void yuv2rgb(int y, int u, int v, unsigned char *r, unsigned char *g, unsigned c
 }
 
 unsigned int framecnt = 0;
-unsigned char bigbuffer[(1280 * 960)];
+unsigned char bigbuffer[(320 * 240 *3)];
+unsigned char bigbuffer2[16 * 16 * 3];
 
 static void process_image(const void *p, int size)
 {
@@ -183,7 +190,12 @@ static void process_image(const void *p, int size)
             yuv2rgb(y_temp, u_temp, v_temp, &bigbuffer[newi], &bigbuffer[newi + 1], &bigbuffer[newi + 2]);
             yuv2rgb(y2_temp, u_temp, v_temp, &bigbuffer[newi + 3], &bigbuffer[newi + 4], &bigbuffer[newi + 5]);
         }
-        dump_ppm(bigbuffer, ((size * 6) / 4), framecnt, &frame_time);
+
+        stbir_resize_uint8(&bigbuffer, 320, 240, 0, &bigbuffer2, 16, 16, 0, 3);
+
+#ifdef DUMP_IMAGE
+        dump_ppm(bigbuffer2, 768, framecnt, &frame_time);
+#endif
     }
 
     else
@@ -236,69 +248,52 @@ static int read_frame(void)
     return 1;
 }
 
-static void mainloop(void)
+void take_picture(void)
 {
-    unsigned int count;
-    struct timespec read_delay;
-    struct timespec time_error;
 
-    read_delay.tv_sec = 0;
-    read_delay.tv_nsec = 30000;
-
-    count = frame_count;
-
-    while (count > 0)
+    for (;;)
     {
-        for (;;)
+        fd_set fds;
+        struct timeval tv;
+        int r;
+
+        FD_ZERO(&fds);
+        FD_SET(fd, &fds);
+
+        /* Timeout. */
+        tv.tv_sec = 2;
+        tv.tv_usec = 0;
+
+        r = select(fd + 1, &fds, NULL, NULL, &tv);
+
+        if (-1 == r)
         {
-            fd_set fds;
-            struct timeval tv;
-            int r;
-
-            FD_ZERO(&fds);
-            FD_SET(fd, &fds);
-
-            /* Timeout. */
-            tv.tv_sec = 2;
-            tv.tv_usec = 0;
-
-            r = select(fd + 1, &fds, NULL, NULL, &tv);
-
-            if (-1 == r)
-            {
-                if (EINTR == errno)
-                    continue;
-                errno_exit("select");
-            }
-
-            if (0 == r)
-            {
-                fprintf(stderr, "select timeout\n");
-                exit(EXIT_FAILURE);
-            }
-
-            if (read_frame())
-            {
-                if (nanosleep(&read_delay, &time_error) != 0)
-                    perror("nanosleep");
-                else
-                    printf("time_error.tv_sec=%ld, time_error.tv_nsec=%ld\n", time_error.tv_sec, time_error.tv_nsec);
-
-                count--;
-                break;
-            }
-
-            /* EAGAIN - continue select loop unless count done. */
-            if (count <= 0)
-                break;
+            if (EINTR == errno)
+                continue;
+            errno_exit("select");
         }
 
-        if (count <= 0)
+        if (0 == r)
+        {
+            fprintf(stderr, "select timeout\n");
+            exit(EXIT_FAILURE);
+        }
+
+        if (read_frame())
+        {
             break;
+        }
     }
 }
 
-static void stop_capturing(void)
+unsigned char *get_processed_image_data()
+{
+    take_picture();
+
+    return &bigbuffer2;
+}
+
+void stop_capturing(void)
 {
     enum v4l2_buf_type type;
 
@@ -307,7 +302,7 @@ static void stop_capturing(void)
         errno_exit("VIDIOC_STREAMOFF");
 }
 
-static void start_capturing(void)
+void start_capturing(void)
 {
     unsigned int i;
     enum v4l2_buf_type type;
@@ -330,7 +325,7 @@ static void start_capturing(void)
         errno_exit("VIDIOC_STREAMON");
 }
 
-static void uninit_device(void)
+void uninit_device(void)
 {
     unsigned int i;
 
@@ -406,7 +401,7 @@ static void init_mmap(void)
     }
 }
 
-static void init_device(void)
+void init_device(void)
 {
     struct v4l2_capability cap;
     struct v4l2_cropcap cropcap;
@@ -504,7 +499,7 @@ static void init_device(void)
     init_mmap();
 }
 
-static void close_device(void)
+void close_device(void)
 {
     if (-1 == close(fd))
         errno_exit("close");
@@ -512,7 +507,7 @@ static void close_device(void)
     fd = -1;
 }
 
-static void open_device(void)
+void open_device(void)
 {
     struct stat st;
 
@@ -539,19 +534,3 @@ static void open_device(void)
     }
 }
 
-int main(int argc, char **argv)
-{
-
-    dev_name = "/dev/video0";
-
-    open_device();
-    init_device();
-    start_capturing();
-    mainloop();
-    stop_capturing();
-    uninit_device();
-    close_device();
-    fprintf(stderr, "\n");
-
-    return 0;
-}

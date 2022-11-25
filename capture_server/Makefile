@@ -6,20 +6,14 @@ CDEFS=
 CFLAGS= -O0 -g $(INCLUDE_DIRS) $(CDEFS)
 LIBS= 
 
-HFILES= 
-CFILES= seq.c
-
-SRCS= ${HFILES} ${CFILES}
-OBJS= ${CFILES:.c=.o}
-
-all:	seq
+all:	server
 
 clean:
 	-rm -f *.o *.d
-	-rm -f seq
+	-rm -f server
 
-seq: seq.o
-	$(CC) $(LDFLAGS) $(CFLAGS) -o $@ $@.o -lpthread
+server: server.o
+	$(CC) $(LDFLAGS) $(CFLAGS) seq.c server.c -o server -lm -lpthread
 
 depend:
 
