@@ -30,6 +30,9 @@
 #include <sys/ioctl.h>
 #include "seq.h"
 
+#define RGB
+
+// #define GRB
 #define DUMP_IMAGE
 #define STB_IMAGE_RESIZE_IMPLEMENTATION
 #include "stb_image_resize.h"
@@ -61,7 +64,6 @@ static unsigned int n_buffers;
 static int out_buf;
 static int force_format = 1;
 static int frame_count = 10;
-
 
 static void errno_exit(const char *s)
 {
@@ -154,13 +156,21 @@ void yuv2rgb(int y, int u, int v, unsigned char *r, unsigned char *g, unsigned c
     if (b1 < 0)
         b1 = 0;
 
+#ifdef RGB
     *r = r1;
     *g = g1;
     *b = b1;
+#endif
+
+#ifdef GRB
+    *r = g1;
+    *g = r1;
+    *b = b1;
+#endif
 }
 
 unsigned int framecnt = 0;
-unsigned char bigbuffer[(320 * 240 *3)];
+unsigned char bigbuffer[(320 * 240 * 3)];
 unsigned char bigbuffer2[16 * 16 * 3];
 
 static void process_image(const void *p, int size)
@@ -533,4 +543,3 @@ void open_device(void)
         exit(EXIT_FAILURE);
     }
 }
-

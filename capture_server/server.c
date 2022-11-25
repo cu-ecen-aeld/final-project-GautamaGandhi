@@ -11,6 +11,11 @@ int main(int argc, char **argv)
     initialize_camera();
 
     image_buffer = get_processed_image_data();
+    image_buffer = get_processed_image_data();
+    image_buffer = get_processed_image_data();
+    image_buffer = get_processed_image_data();
+    image_buffer = get_processed_image_data();
+    image_buffer = get_processed_image_data();
 
     // for (int k = 0; k < 768; k++)
     // {
