@@ -15,16 +15,16 @@ int main(int argc, char **argv)
     image_buffer = get_processed_image_data();
     image_buffer = get_processed_image_data();
     image_buffer = get_processed_image_data();
-    image_buffer = get_processed_image_data();
 
-    // for (int k = 0; k < 768; k++)
-    // {
-    //     printf("%03d,", image_buffer[k]);
 
-    //     if (k % 48 == 0 && k != 0)
-    //         printf("\n");
-    // }
-    // printf("\n");
+    for (int k = 0; k < 192; k++)
+    {
+        printf("%0d,", image_buffer[k]);
+
+        if (k % 15 == 0)
+            printf("\n");
+    }
+    printf("\n");
 
     shutdown_camera();
     return 0;

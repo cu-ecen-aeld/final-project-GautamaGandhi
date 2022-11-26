@@ -45,8 +45,8 @@
 #define COLOR_CONVERT
 #define HRES 320
 #define VRES 240
-#define HRES_STR "16"
-#define VRES_STR "16"
+#define HRES_STR "8"
+#define VRES_STR "8"
 
 // Format is used by a number of functions, so made as a file global
 static struct v4l2_format fmt;
@@ -201,10 +201,10 @@ static void process_image(const void *p, int size)
             yuv2rgb(y2_temp, u_temp, v_temp, &bigbuffer[newi + 3], &bigbuffer[newi + 4], &bigbuffer[newi + 5]);
         }
 
-        stbir_resize_uint8(&bigbuffer, 320, 240, 0, &bigbuffer2, 16, 16, 0, 3);
+        stbir_resize_uint8(&bigbuffer, 320, 240, 0, &bigbuffer2, 8, 8, 0, 3);
 
 #ifdef DUMP_IMAGE
-        dump_ppm(bigbuffer2, 768, framecnt, &frame_time);
+        dump_ppm(bigbuffer2, 192, framecnt, &frame_time);
 #endif
     }
 
