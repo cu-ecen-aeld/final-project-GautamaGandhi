@@ -33,7 +33,7 @@
 #define RGB
 
 // #define GRB
-#define DUMP_IMAGE
+// #define DUMP_IMAGE
 #define STB_IMAGE_RESIZE_IMPLEMENTATION
 #include "stb_image_resize.h"
 

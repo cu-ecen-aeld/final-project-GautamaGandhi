@@ -15,6 +15,7 @@
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <netdb.h>
+#include <unistd.h>
 
 #include "seq.h"
 
@@ -192,28 +193,29 @@ int main(int argc, char **argv)
 
     // String to hold the IP address of the client; used when printing logs
     char address_string[INET_ADDRSTRLEN];
+    new_fd = accept(socketfd, (struct sockaddr *)&test_addr, &addr_size);
+
+    if (new_fd == -1)
+    {
+        perror("accept");
+    }
+
+    struct sockaddr_in *p = (struct sockaddr_in *)&test_addr;
+    printf("Accepted connection from %s\n", inet_ntop(AF_INET, &p->sin_addr, address_string, sizeof(address_string)));
 
     while (1)
     {
-        new_fd = accept(socketfd, (struct sockaddr *)&test_addr, &addr_size);
-
-        if (new_fd == -1)
-        {
-            perror("accept");
-        }
-
-        struct sockaddr_in *p = (struct sockaddr_in *)&test_addr;
-        printf("Accepted connection from %s\n", inet_ntop(AF_INET, &p->sin_addr, address_string, sizeof(address_string)));
 
         image_buffer = get_processed_image_data();
-        
-        bytes_sent = send(new_fd, image_buffer, sizeof(image_buffer), 0);
-        printf("Bytes sent = %d\n", bytes_sent);
 
-        syslog(LOG_DEBUG, "Closed connection from %s", address_string);
-        close(new_fd);
+        bytes_sent = send(new_fd, image_buffer, 768, 0);
+
+        //Needs Error Handling and Disconnection status check
+
+        // usleep(1000000);
     }
 
-    
+    syslog(LOG_DEBUG, "Closed connection from %s", address_string);
+    close(new_fd);
     return 0;
 }
