@@ -6,14 +6,13 @@ CDEFS=
 CFLAGS= -O0 -g $(INCLUDE_DIRS) $(CDEFS)
 LIBS= 
 
-all:	server
+all: server.o
+	$(CC) $(LDFLAGS) $(CFLAGS) seq.c server.c -o server -lm -lpthread
+
 
 clean:
 	-rm -f *.o *.d
 	-rm -f server
-
-server: server.o
-	$(CC) $(LDFLAGS) $(CFLAGS) seq.c server.c -o server -lm -lpthread
 
 depend:
 

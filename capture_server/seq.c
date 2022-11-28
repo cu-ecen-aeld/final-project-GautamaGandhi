@@ -31,9 +31,9 @@
 #include "seq.h"
 
 #define RGB
-
 // #define GRB
 // #define DUMP_IMAGE
+
 #define STB_IMAGE_RESIZE_IMPLEMENTATION
 #include "stb_image_resize.h"
 
@@ -48,6 +48,8 @@
 #define HRES_STR "16"
 #define VRES_STR "16"
 
+#define LUMINENCE_OFFSET (30)
+#define LUMINENCE_THRESHOLD (125)
 // Format is used by a number of functions, so made as a file global
 static struct v4l2_format fmt;
 
@@ -65,12 +67,17 @@ static int out_buf;
 static int force_format = 1;
 static int frame_count = 10;
 
+unsigned int framecnt = 0;
+unsigned char *bigbuffer;
+unsigned char *bigbuffer2;
+
+//-------------------------------------errno_exit--------------------------------------------------------------------------
 static void errno_exit(const char *s)
 {
     fprintf(stderr, "%s error %d, %s\n", s, errno, strerror(errno));
     exit(EXIT_FAILURE);
 }
-
+//-------------------------------------xioctl--------------------------------------------------------------------------
 static int xioctl(int fh, int request, void *arg)
 {
     int r;
@@ -81,10 +88,9 @@ static int xioctl(int fh, int request, void *arg)
     } while (-1 == r && EINTR == errno);
     return r;
 }
-
+//-------------------------------------dump_ppm--------------------------------------------------------------------------
 char ppm_header[] = "P6\n#9999999999 sec 9999999999 msec \n" HRES_STR " " VRES_STR "\n255\n";
 char ppm_dumpname[] = "frames/test00000000.ppm";
-
 void dump_ppm(const void *p, int size, unsigned int tag, struct timespec *time)
 {
     int written, i, total, dumpfd;
@@ -113,7 +119,7 @@ void dump_ppm(const void *p, int size, unsigned int tag, struct timespec *time)
 
     close(dumpfd);
 }
-
+//-------------------------------------yuv2rgb--------------------------------------------------------------------------
 // This is probably the most acceptable conversion from camera YUYV to RGB
 //
 // Wikipedia has a good discussion on the details of various conversions and cites good references:
@@ -131,10 +137,15 @@ void dump_ppm(const void *p, int size, unsigned int tag, struct timespec *time)
 
 void yuv2rgb(int y, int u, int v, unsigned char *r, unsigned char *g, unsigned char *b)
 {
-    int r1, g1, b1;
+    int r1, g1, b1, c;
 
     // replaces floating point coefficients
-    int c = y - 16, d = u - 128, e = v - 128;
+    if (LUMINENCE_OFFSET && y > LUMINENCE_THRESHOLD)
+        c = y - (16 + LUMINENCE_OFFSET);
+    else
+        c = y - 16;
+
+    int d = u - 128, e = v - 128;
 
     // Conversion that avoids floating point
     r1 = (298 * c + 409 * e + 128) >> 8;
@@ -168,11 +179,7 @@ void yuv2rgb(int y, int u, int v, unsigned char *r, unsigned char *g, unsigned c
     *b = b1;
 #endif
 }
-
-unsigned int framecnt = 0;
-unsigned char bigbuffer[(320 * 240 * 3)];
-unsigned char bigbuffer2[16 * 16 * 3];
-
+//-------------------------------------process_image--------------------------------------------------------------------------
 static void process_image(const void *p, int size)
 {
     int i, newi, newsize = 0;
@@ -184,12 +191,11 @@ static void process_image(const void *p, int size)
     clock_gettime(CLOCK_REALTIME, &frame_time);
 
     framecnt++;
-    printf("frame %d: ", framecnt);
-
+    // printf("frame %d: ", framecnt);
     if (fmt.fmt.pix.pixelformat == V4L2_PIX_FMT_YUYV)
     {
 
-        printf("Dump YUYV converted to RGB size %d\n", size);
+        // printf("Dump YUYV converted to RGB size %d\n", size);
 
         for (i = 0, newi = 0; i < size; i = i + 4, newi = newi + 6)
         {
@@ -201,7 +207,7 @@ static void process_image(const void *p, int size)
             yuv2rgb(y2_temp, u_temp, v_temp, &bigbuffer[newi + 3], &bigbuffer[newi + 4], &bigbuffer[newi + 5]);
         }
 
-        stbir_resize_uint8(&bigbuffer, 320, 240, 0, &bigbuffer2, 16,16 , 0, 3);
+        stbir_resize_uint8(bigbuffer, 320, 240, 0, bigbuffer2, 16, 16, 0, 3);
 
 #ifdef DUMP_IMAGE
         dump_ppm(bigbuffer2, 768, framecnt, &frame_time);
@@ -217,7 +223,7 @@ static void process_image(const void *p, int size)
     // fprintf(stderr, ".");
     fflush(stdout);
 }
-
+//-------------------------------------read_frame--------------------------------------------------------------------------
 static int read_frame(void)
 {
     struct v4l2_buffer buf;
@@ -257,7 +263,7 @@ static int read_frame(void)
     // printf("R");
     return 1;
 }
-
+//-------------------------------------take_picture--------------------------------------------------------------------------
 void take_picture(void)
 {
 
@@ -295,14 +301,13 @@ void take_picture(void)
         }
     }
 }
-
+//-------------------------------------get_processed_image--------------------------------------------------------------------------
 unsigned char *get_processed_image_data()
 {
     take_picture();
-
-    return &bigbuffer2;
+    return bigbuffer2;
 }
-
+//-------------------------------------stop_capturing--------------------------------------------------------------------------
 void stop_capturing(void)
 {
     enum v4l2_buf_type type;
@@ -310,8 +315,11 @@ void stop_capturing(void)
     type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
     if (-1 == xioctl(fd, VIDIOC_STREAMOFF, &type))
         errno_exit("VIDIOC_STREAMOFF");
-}
 
+    free(bigbuffer);
+    free(bigbuffer2);
+}
+//-------------------------------------start_capturing--------------------------------------------------------------------------
 void start_capturing(void)
 {
     unsigned int i;
@@ -319,9 +327,7 @@ void start_capturing(void)
 
     for (i = 0; i < n_buffers; ++i)
     {
-        printf("allocated buffer %d\n", i);
         struct v4l2_buffer buf;
-
         CLEAR(buf);
         buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
         buf.memory = V4L2_MEMORY_MMAP;
@@ -333,8 +339,12 @@ void start_capturing(void)
     type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
     if (-1 == xioctl(fd, VIDIOC_STREAMON, &type))
         errno_exit("VIDIOC_STREAMON");
-}
 
+    // Allocating memories for the buffers
+    bigbuffer = malloc(sizeof(uint8_t) * 320 * 240 * 3);
+    bigbuffer2 = malloc(sizeof(uint8_t) * 768);
+}
+//-------------------------------------uninit_device--------------------------------------------------------------------------
 void uninit_device(void)
 {
     unsigned int i;
@@ -345,7 +355,7 @@ void uninit_device(void)
 
     free(buffers);
 }
-
+//-------------------------------------init_mmap--------------------------------------------------------------------------
 static void init_mmap(void)
 {
     struct v4l2_requestbuffers req;
@@ -410,7 +420,7 @@ static void init_mmap(void)
             errno_exit("mmap");
     }
 }
-
+//-------------------------------------init_device--------------------------------------------------------------------------
 void init_device(void)
 {
     struct v4l2_capability cap;
@@ -470,10 +480,6 @@ void init_device(void)
             }
         }
     }
-    else
-    {
-        /* Errors ignored. */
-    }
 
     CLEAR(fmt);
 
@@ -481,7 +487,6 @@ void init_device(void)
 
     if (force_format)
     {
-        printf("FORCING FORMAT\n");
         fmt.fmt.pix.width = HRES;
         fmt.fmt.pix.height = VRES;
         fmt.fmt.pix.pixelformat = V4L2_PIX_FMT_YUYV;
@@ -508,7 +513,7 @@ void init_device(void)
 
     init_mmap();
 }
-
+//-------------------------------------close_device--------------------------------------------------------------------------
 void close_device(void)
 {
     if (-1 == close(fd))
@@ -516,7 +521,7 @@ void close_device(void)
 
     fd = -1;
 }
-
+//-------------------------------------open_device--------------------------------------------------------------------------
 void open_device(void)
 {
     struct stat st;
@@ -543,3 +548,4 @@ void open_device(void)
         exit(EXIT_FAILURE);
     }
 }
+//-------------------------------------End--------------------------------------------------------------------------
