@@ -6,3 +6,5 @@ capture_server/seq
 capture_server/server
 client/client
 client/server
+*.ppm
+*.out
