@@ -30,7 +30,6 @@ void sig_handler(int signum);
 // Global Variables
 int socketfd;         // Socket File Descriptor
 int new_fd;           // File Descriptor used to receive and send data
-char *storage_buffer; // Pointer to storage buffer
 
 //-------------------------------------main--------------------------------------------------------------------------
 int main(int argc, char **argv)
@@ -93,8 +92,6 @@ int main(int argc, char **argv)
     struct sockaddr_storage test_addr;
 
     socklen_t addr_size = sizeof test_addr;
-    storage_buffer = (char *)malloc(INITIAL_BUFFER_SIZE);
-    int storage_buffer_size = INITIAL_BUFFER_SIZE;
     int bytes_sent;
 
     // String to hold the IP address of the client; used when printing logs
@@ -142,8 +139,7 @@ void sig_handler(int signum)
     else if (signum == SIGTERM)
         printf("Caught signal SIGTERM, exiting");
 
-    // Freeing storage buffer allocated memory
-    free(storage_buffer);
+    shutdown_camera();
 
     // Closing socketfd FD
     int status = close(socketfd);
