@@ -6,7 +6,7 @@ CFLAGS=
 LINKFLAGS=-lm -lrt
 
 all:
-	$(CROSS_COMPILE)$(CC) $(SRC) $(LIBS) $(CFLAGS) $(LINKFLAGS) -o test
+	$(CROSS_COMPILE)$(CC) $(SRC) $(LIBS) $(CFLAGS) $(LINKFLAGS) -o client
 
 clean:
-	rm test
+	rm client

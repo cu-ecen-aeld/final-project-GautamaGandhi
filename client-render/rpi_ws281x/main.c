@@ -572,7 +572,8 @@ void parseargs(int argc, char **argv, ws2811_t *ws2811)
 
 int main(int argc, char *argv[])
 {
-	// initialize_camera();
+
+	printf("Socket Client\n");
 
 	unsigned char *image_buffer;
 
@@ -595,8 +596,6 @@ int main(int argc, char *argv[])
 	test_image_render();
 
 	check_array();
-
-	printf("Socket Client\n");
 
     int status;
     struct addrinfo hints;
