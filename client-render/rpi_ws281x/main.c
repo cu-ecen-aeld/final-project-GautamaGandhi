@@ -43,6 +43,25 @@ static char VERSION[] = "XX.YY.ZZ";
 #include <stdarg.h>
 #include <getopt.h>
 
+#include <stdio.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <errno.h>
+#include <syslog.h>
+#include <netdb.h>
+#include <string.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <signal.h>
+#include <linux/fs.h>
+#include <arpa/inet.h>
+#include <netinet/in.h>
+#include <netdb.h>
+#include <time.h>
+
 
 #include "clk.h"
 #include "gpio.h"
@@ -51,9 +70,6 @@ static char VERSION[] = "XX.YY.ZZ";
 #include "version.h"
 
 #include "ws2811.h"
-
-#include "seq.h"
-#include "server.h"
 
 
 #define ARRAY_SIZE(stuff)       (sizeof(stuff) / sizeof(stuff[0]))
@@ -123,7 +139,7 @@ void check_array()
 {
 	int array_size = sizeof(array)/sizeof(array[0]);
 
-	printf("Array_size = %d\n", array_size);
+	// printf("Array_size = %d\n", array_size);
 }
 
 uint32_t led_matrix[LED_COUNT];
@@ -132,13 +148,7 @@ void process_array(unsigned char *input_array, int array_size)
 {
 	for (int i = 0; i < 256; i++) {
 		led_matrix[i] = (((input_array[3*i] << 5) / 256) << 16) | (((input_array[3*i+1]<< 5) / 256) << 8) | (((input_array[3*i+2]<< 5) / 256));
-		// printf("%x\n", led_matrix[i]);
 	}
-
-	// for (int i = 56; i < 64; i++) {
-	// 	printf("%d %d %d\n", input_array[i], input_array[i+64], input_array[i+128]);
-	// }
-
 }
 
 
@@ -562,7 +572,7 @@ void parseargs(int argc, char **argv, ws2811_t *ws2811)
 
 int main(int argc, char *argv[])
 {
-	initialize_camera();
+	// initialize_camera();
 
 	unsigned char *image_buffer;
 
@@ -586,33 +596,94 @@ int main(int argc, char *argv[])
 
 	check_array();
 
-	
+	printf("Socket Client\n");
+
+    int status;
+    struct addrinfo hints;
+    struct addrinfo *servinfo; // Points to results
+
+    memset(&hints, 0, sizeof(hints)); // Empty struct
+    hints.ai_family = AF_INET;
+    hints.ai_socktype = SOCK_STREAM;
+    hints.ai_flags = AI_PASSIVE;
+
+    if ((status = getaddrinfo("10.0.0.143", "9000", &hints, &servinfo)) != 0)
+    {
+        printf("Error in getting addrinfo! Error number is %d\n", errno);
+        return -1;
+    }
+
+    // Socket SETUP begin
+    // Getting a socketfd
+    int socketfd = socket(servinfo->ai_family, servinfo->ai_socktype, servinfo->ai_protocol);
+
+    if (socketfd == -1)
+    {
+        printf("Error creating socket! Error number is %d\n", errno);
+        return -1;
+    }
+
+    unsigned char buffer[768];
+
+    int client_fd = connect(socketfd, servinfo->ai_addr, servinfo->ai_addrlen);
+
 
     while (running)
     {
-		image_buffer = get_processed_image_data();
-		// usleep(10000);
-		process_array(image_buffer, 768);
-		// usleep(100000);
-        // matrix_raise();
-	    fill_matrix_16x16();
-        // matrix_bottom();
-        matrix_render();
+    
+        int bytes_received = recv(socketfd, buffer, sizeof(buffer), 0);
 
-        if ((ret = ws2811_render(&ledstring)) != WS2811_SUCCESS)
-        {
-            fprintf(stderr, "ws2811_render failed: %s\n", ws2811_get_return_t_str(ret));
-            break;
-        }
+		if (bytes_received == 768) {
+			process_array(buffer, 768);
 
-        // 15 frames /sec
-        usleep(1000000 / 15);
+			fill_matrix_16x16();
+			matrix_render();
+
+			if ((ret = ws2811_render(&ledstring)) != WS2811_SUCCESS)
+			{
+				fprintf(stderr, "ws2811_render failed: %s\n", ws2811_get_return_t_str(ret));
+				break;
+			}
+
+			// 15 frames /sec
+			// usleep(1000000 / 15);
+
+		}
+
+        // t1 = time(0);
+        // printf("Frame Received Bytes Received -> %d, latency -> %lf \n", bytes_received,difftime(t1, t0) * 1000);
     }
+    printf("\n");
+
+    freeaddrinfo(servinfo);
+
+	
+
+    // while (running)
+    // {
+	// 	//image_buffer = get_processed_image_data();
+	// 	// usleep(10000);
+	// 	process_array(image_buffer, 768);
+	// 	// usleep(100000);
+    //     // matrix_raise();
+	//     fill_matrix_16x16();
+    //     // matrix_bottom();
+    //     matrix_render();
+
+    //     if ((ret = ws2811_render(&ledstring)) != WS2811_SUCCESS)
+    //     {
+    //         fprintf(stderr, "ws2811_render failed: %s\n", ws2811_get_return_t_str(ret));
+    //         break;
+    //     }
+
+    //     // 15 frames /sec
+    //     usleep(1000000 / 15);
+    // }
 
     if (clear_on_exit) {
-	matrix_clear();
-	matrix_render();
-	ws2811_render(&ledstring);
+		matrix_clear();
+		matrix_render();
+		ws2811_render(&ledstring);
     }
 
     ws2811_fini(&ledstring);
