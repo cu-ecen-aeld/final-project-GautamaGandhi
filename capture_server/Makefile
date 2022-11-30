@@ -1,13 +1,14 @@
 INCLUDE_DIRS = 
 LIB_DIRS = 
 CC=gcc -Wno-stringop-overflow
+CROSS_COMPILE=
 
 CDEFS=
 CFLAGS= -O0 -g $(INCLUDE_DIRS) $(CDEFS)
 LIBS= 
 
 all: server.o
-	$(CC) $(LDFLAGS) $(CFLAGS) seq.c server.c -o server -lm -lpthread
+	$(CROSS_COMPILE)$(CC) $(LDFLAGS) $(CFLAGS) seq.c server.c -o server -lm -lpthread
 
 
 clean:
