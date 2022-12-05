@@ -62,7 +62,7 @@ int main(int argc, char **argv)
     hints.ai_socktype = SOCK_STREAM;
     hints.ai_flags = AI_PASSIVE;
 
-    if ((status = getaddrinfo("127.0.0.1", "9000", &hints, &servinfo)) != 0)
+    if ((status = getaddrinfo("192.168.1.1", "9000", &hints, &servinfo)) != 0)
     {
         printf("Error in getting addrinfo! Error number is %d\n", errno);
         return -1;
@@ -78,20 +78,28 @@ int main(int argc, char **argv)
         return -1;
     }
 
-        char buffer[768];
-        time_t t0,t1;
+    char buffer[768];
+    time_t t0, t1;
 
-    int client_fd = connect(socketfd, servinfo->ai_addr, servinfo->ai_addrlen);
+    int client_fd;
+ here :
+
+        client_fd = connect(socketfd, servinfo->ai_addr, servinfo->ai_addrlen);
     while (1)
     {
         t0 = time(0);
-        
 
         int bytes_received = recv(socketfd, buffer, 768, 0);
+        
+        if (bytes_received == 0)
+        {
+            printf("bytes0\n");
+            goto here;
+        }
+        printf("%s\n", buffer);
         t1 = time(0);
-        printf("Frame Received Bytes Received -> %d, latency -> %lf \n", bytes_received,difftime(t1, t0) * 1000);
+        // printf("Frame Received Bytes Received -> %d, latency -> %lf \n", bytes_received,difftime(t1, t0) * 1000);
     }
-    printf("\n");
 
     freeaddrinfo(servinfo);
     // Socket SETUP end

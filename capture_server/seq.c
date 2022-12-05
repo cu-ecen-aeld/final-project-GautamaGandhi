@@ -1,26 +1,17 @@
-/*
- *
- *  Adapted by Sam Siewert for use with UVC web cameras and Bt878 frame
- *  grabber NTSC cameras to acquire digital video from a source,
- *  time-stamp each frame acquired, save to a PGM or PPM file.
- *
- *  The original code adapted was open source from V4L2 API and had the
- *  following use and incorporation policy:
- *
- *  This program can be used and distributed without restrictions.
- *
- *      This program is provided with the V4L2 API
- * see http://linuxtv.org/docs.php for more information
- */
+/***************************************************************************
+ * AESD Final Project
+ * Author: Starter code by Sam Siewert(RTES), Modifications + new code by Chinmay Shalawadi 
+ * Institution: University of Colorado Boulder
+ * Mail id: chsh1552@colorado.edu
+ * References: Wikipedia, ChatGPT & stb header library
+ ***************************************************************************/
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
-
-#include <getopt.h> /* getopt_long() */
-
-#include <fcntl.h> /* low-level i/o */
+#include <getopt.h> 
+#include <fcntl.h> 
 #include <unistd.h>
 #include <errno.h>
 #include <sys/stat.h>
@@ -31,34 +22,30 @@
 #include "seq.h"
 
 #define RGB
+
+// Switches for code flow
 // #define GRB
-// #define DUMP_IMAGE
 
 #define STB_IMAGE_RESIZE_IMPLEMENTATION
 #include "stb_image_resize.h"
-
 #include <linux/videodev2.h>
-
 #include <time.h>
-
 #define CLEAR(x) memset(&(x), 0, sizeof(x))
 #define COLOR_CONVERT
 #define HRES 320
 #define VRES 240
-#define HRES_STR "16"
-#define VRES_STR "16"
 
+//Changes to make image look better on matrix
 #define LUMINENCE_OFFSET (30)
 #define LUMINENCE_THRESHOLD (125)
+
 // Format is used by a number of functions, so made as a file global
 static struct v4l2_format fmt;
-
 struct buffer
 {
     void *start;
     size_t length;
 };
-
 char *dev_name = "/dev/video0";
 static int fd = -1;
 struct buffer *buffers;
@@ -66,7 +53,6 @@ static unsigned int n_buffers;
 static int out_buf;
 static int force_format = 1;
 static int frame_count = 10;
-
 unsigned int framecnt = 0;
 unsigned char *bigbuffer;
 unsigned char *bigbuffer2;
@@ -88,38 +74,10 @@ static int xioctl(int fh, int request, void *arg)
     } while (-1 == r && EINTR == errno);
     return r;
 }
-//-------------------------------------dump_ppm--------------------------------------------------------------------------
-char ppm_header[] = "P6\n#9999999999 sec 9999999999 msec \n" HRES_STR " " VRES_STR "\n255\n";
-char ppm_dumpname[] = "frames/test00000000.ppm";
-void dump_ppm(const void *p, int size, unsigned int tag, struct timespec *time)
-{
-    int written, i, total, dumpfd;
-
-    snprintf(&ppm_dumpname[11], 9, "%08d", tag);
-    strncat(&ppm_dumpname[15], ".ppm", 5);
-    dumpfd = open(ppm_dumpname, O_WRONLY | O_NONBLOCK | O_CREAT, 00666);
-
-    snprintf(&ppm_header[4], 11, "%010d", (int)time->tv_sec);
-    strncat(&ppm_header[14], " sec ", 5);
-    snprintf(&ppm_header[19], 11, "%010d", (int)((time->tv_nsec) / 1000000));
-    strncat(&ppm_header[29], " msec \n" HRES_STR " " VRES_STR "\n255\n", 19);
-
-    // subtract 1 because sizeof for string includes null terminator
-    written = write(dumpfd, ppm_header, sizeof(ppm_header) - 1);
-
-    total = 0;
-
-    do
-    {
-        written = write(dumpfd, p, size);
-        total += written;
-    } while (total < size);
-
-    printf("wrote %d bytes\n", total);
-
-    close(dumpfd);
-}
 //-------------------------------------yuv2rgb--------------------------------------------------------------------------
+//
+//This code has been modified for color adjustments for LED matrix
+//
 // This is probably the most acceptable conversion from camera YUYV to RGB
 //
 // Wikipedia has a good discussion on the details of various conversions and cites good references:
@@ -183,21 +141,11 @@ void yuv2rgb(int y, int u, int v, unsigned char *r, unsigned char *g, unsigned c
 static void process_image(const void *p, int size)
 {
     int i, newi, newsize = 0;
-    struct timespec frame_time;
     int y_temp, y2_temp, u_temp, v_temp;
     unsigned char *pptr = (unsigned char *)p;
-
-    // record when process was called
-    clock_gettime(CLOCK_REALTIME, &frame_time);
-
-    framecnt++;
-    // printf("frame %d: ", framecnt);
     if (fmt.fmt.pix.pixelformat == V4L2_PIX_FMT_YUYV)
     {
-
-        // printf("Dump YUYV converted to RGB size %d\n", size);
-
-        for (i = 0, newi = 0; i < size; i = i + 4, newi = newi + 6)
+         for (i = 0, newi = 0; i < size; i = i + 4, newi = newi + 6)
         {
             y_temp = (int)pptr[i];
             u_temp = (int)pptr[i + 1];
@@ -206,12 +154,8 @@ static void process_image(const void *p, int size)
             yuv2rgb(y_temp, u_temp, v_temp, &bigbuffer[newi], &bigbuffer[newi + 1], &bigbuffer[newi + 2]);
             yuv2rgb(y2_temp, u_temp, v_temp, &bigbuffer[newi + 3], &bigbuffer[newi + 4], &bigbuffer[newi + 5]);
         }
-
+        // crop and resize the image down to 16x16
         stbir_resize_uint8(bigbuffer, 320, 240, 0, bigbuffer2, 16, 16, 0, 3);
-
-#ifdef DUMP_IMAGE
-        dump_ppm(bigbuffer2, 768, framecnt, &frame_time);
-#endif
     }
 
     else
@@ -220,7 +164,6 @@ static void process_image(const void *p, int size)
     }
 
     fflush(stderr);
-    // fprintf(stderr, ".");
     fflush(stdout);
 }
 //-------------------------------------read_frame--------------------------------------------------------------------------
