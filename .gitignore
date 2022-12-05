@@ -8,3 +8,4 @@ client/client
 client/server
 *.ppm
 *.out
+client-render/rpi_ws281x/client

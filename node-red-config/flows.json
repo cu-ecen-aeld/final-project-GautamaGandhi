@@ -1,0 +1,374 @@
+[
+    {
+        "id": "2365eb1463fcff68",
+        "type": "tab",
+        "label": "Flow 1",
+        "disabled": false,
+        "info": "",
+        "env": []
+    },
+    {
+        "id": "40b561f9d378d9f6",
+        "type": "ui_tab",
+        "name": "Home",
+        "icon": "dashboard",
+        "disabled": false,
+        "hidden": false
+    },
+    {
+        "id": "dd1488983fb75631",
+        "type": "ui_base",
+        "theme": {
+            "name": "theme-light",
+            "lightTheme": {
+                "default": "#0094CE",
+                "baseColor": "#0094CE",
+                "baseFont": "-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Oxygen-Sans,Ubuntu,Cantarell,Helvetica Neue,sans-serif",
+                "edited": true,
+                "reset": false
+            },
+            "darkTheme": {
+                "default": "#097479",
+                "baseColor": "#097479",
+                "baseFont": "-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Oxygen-Sans,Ubuntu,Cantarell,Helvetica Neue,sans-serif",
+                "edited": false
+            },
+            "customTheme": {
+                "name": "Untitled Theme 1",
+                "default": "#4B7930",
+                "baseColor": "#4B7930",
+                "baseFont": "-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Oxygen-Sans,Ubuntu,Cantarell,Helvetica Neue,sans-serif"
+            },
+            "themeState": {
+                "base-color": {
+                    "default": "#0094CE",
+                    "value": "#0094CE",
+                    "edited": false
+                },
+                "page-titlebar-backgroundColor": {
+                    "value": "#0094CE",
+                    "edited": false
+                },
+                "page-backgroundColor": {
+                    "value": "#fafafa",
+                    "edited": false
+                },
+                "page-sidebar-backgroundColor": {
+                    "value": "#ffffff",
+                    "edited": false
+                },
+                "group-textColor": {
+                    "value": "#1bbfff",
+                    "edited": false
+                },
+                "group-borderColor": {
+                    "value": "#ffffff",
+                    "edited": false
+                },
+                "group-backgroundColor": {
+                    "value": "#ffffff",
+                    "edited": false
+                },
+                "widget-textColor": {
+                    "value": "#111111",
+                    "edited": false
+                },
+                "widget-backgroundColor": {
+                    "value": "#0094ce",
+                    "edited": false
+                },
+                "widget-borderColor": {
+                    "value": "#ffffff",
+                    "edited": false
+                },
+                "base-font": {
+                    "value": "-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Oxygen-Sans,Ubuntu,Cantarell,Helvetica Neue,sans-serif"
+                }
+            },
+            "angularTheme": {
+                "primary": "indigo",
+                "accents": "blue",
+                "warn": "red",
+                "background": "grey",
+                "palette": "light"
+            }
+        },
+        "site": {
+            "name": "Node-RED Dashboard",
+            "hideToolbar": "false",
+            "allowSwipe": "false",
+            "lockMenu": "false",
+            "allowTempTheme": "true",
+            "dateFormat": "DD/MM/YYYY",
+            "sizes": {
+                "sx": 48,
+                "sy": 48,
+                "gx": 6,
+                "gy": 6,
+                "cx": 6,
+                "cy": 6,
+                "px": 0,
+                "py": 0
+            }
+        }
+    },
+    {
+        "id": "2fb9617a1dd1cb44",
+        "type": "ui_group",
+        "name": "Server",
+        "tab": "40b561f9d378d9f6",
+        "order": 1,
+        "disp": true,
+        "width": "6",
+        "collapse": false,
+        "className": ""
+    },
+    {
+        "id": "ae86960c6bc14993",
+        "type": "ui_tab",
+        "name": "Home2",
+        "icon": "dashboard",
+        "disabled": false,
+        "hidden": false
+    },
+    {
+        "id": "fd7b7602bcbbd81c",
+        "type": "ui_group",
+        "name": "Default",
+        "tab": "ae86960c6bc14993",
+        "order": 1,
+        "disp": true,
+        "width": "6",
+        "collapse": false,
+        "className": ""
+    },
+    {
+        "id": "97625fc0433d3527",
+        "type": "ui_group",
+        "name": "Client",
+        "tab": "40b561f9d378d9f6",
+        "order": 2,
+        "disp": true,
+        "width": "6",
+        "collapse": false,
+        "className": ""
+    },
+    {
+        "id": "0c4c5533ece89c7c",
+        "type": "tcp out",
+        "z": "2365eb1463fcff68",
+        "name": "ServerManOut",
+        "host": "",
+        "port": "9999",
+        "beserver": "server",
+        "base64": false,
+        "end": false,
+        "tls": "",
+        "x": 440,
+        "y": 100,
+        "wires": []
+    },
+    {
+        "id": "8f7d76ddadd23c68",
+        "type": "function",
+        "z": "2365eb1463fcff68",
+        "name": "start",
+        "func": "msg.payload = \"start\\0\";\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 230,
+        "y": 100,
+        "wires": [
+            [
+                "8e8fe45f51dabafe"
+            ]
+        ]
+    },
+    {
+        "id": "a51b9edf8c5da192",
+        "type": "function",
+        "z": "2365eb1463fcff68",
+        "name": "stop",
+        "func": "msg.payload = \"stop\\0\";\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 190,
+        "y": 280,
+        "wires": [
+            [
+                "8e8fe45f51dabafe"
+            ]
+        ]
+    },
+    {
+        "id": "08251fd0fa728293",
+        "type": "ui_button",
+        "z": "2365eb1463fcff68",
+        "name": "",
+        "group": "2fb9617a1dd1cb44",
+        "order": 0,
+        "width": 0,
+        "height": 0,
+        "passthru": false,
+        "label": "Start Server",
+        "tooltip": "",
+        "color": "",
+        "bgcolor": "",
+        "className": "",
+        "icon": "",
+        "payload": "",
+        "payloadType": "str",
+        "topic": "topic",
+        "topicType": "msg",
+        "x": 90,
+        "y": 140,
+        "wires": [
+            [
+                "5fa031d12a94e021"
+            ]
+        ]
+    },
+    {
+        "id": "3699915f68cb0884",
+        "type": "ui_button",
+        "z": "2365eb1463fcff68",
+        "name": "",
+        "group": "2fb9617a1dd1cb44",
+        "order": 1,
+        "width": 0,
+        "height": 0,
+        "passthru": false,
+        "label": "Stop Server",
+        "tooltip": "",
+        "color": "",
+        "bgcolor": "",
+        "className": "",
+        "icon": "",
+        "payload": "",
+        "payloadType": "str",
+        "topic": "topic",
+        "topicType": "msg",
+        "x": 70,
+        "y": 520,
+        "wires": [
+            [
+                "11b1b2f43550b8f0"
+            ]
+        ]
+    },
+    {
+        "id": "3ea3e3a7a0219134",
+        "type": "ui_button",
+        "z": "2365eb1463fcff68",
+        "name": "",
+        "group": "97625fc0433d3527",
+        "order": 1,
+        "width": 0,
+        "height": 0,
+        "passthru": false,
+        "label": "Stop Client",
+        "tooltip": "",
+        "color": "",
+        "bgcolor": "",
+        "className": "",
+        "icon": "",
+        "payload": "",
+        "payloadType": "str",
+        "topic": "topic",
+        "topicType": "msg",
+        "x": 70,
+        "y": 440,
+        "wires": [
+            [
+                "a51b9edf8c5da192"
+            ]
+        ]
+    },
+    {
+        "id": "9e9a1f4d2c22700e",
+        "type": "ui_button",
+        "z": "2365eb1463fcff68",
+        "name": "",
+        "group": "97625fc0433d3527",
+        "order": 0,
+        "width": 0,
+        "height": 0,
+        "passthru": false,
+        "label": "Start Client",
+        "tooltip": "",
+        "color": "",
+        "bgcolor": "",
+        "className": "",
+        "icon": "",
+        "payload": "",
+        "payloadType": "str",
+        "topic": "topic",
+        "topicType": "msg",
+        "x": 70,
+        "y": 60,
+        "wires": [
+            [
+                "8f7d76ddadd23c68"
+            ]
+        ]
+    },
+    {
+        "id": "8e8fe45f51dabafe",
+        "type": "tcp out",
+        "z": "2365eb1463fcff68",
+        "name": "ClientManOut",
+        "host": "",
+        "port": "9998",
+        "beserver": "server",
+        "base64": false,
+        "end": false,
+        "tls": "",
+        "x": 440,
+        "y": 160,
+        "wires": []
+    },
+    {
+        "id": "5fa031d12a94e021",
+        "type": "function",
+        "z": "2365eb1463fcff68",
+        "name": "start",
+        "func": "msg.payload = \"start\\0\";\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 230,
+        "y": 180,
+        "wires": [
+            [
+                "0c4c5533ece89c7c"
+            ]
+        ]
+    },
+    {
+        "id": "11b1b2f43550b8f0",
+        "type": "function",
+        "z": "2365eb1463fcff68",
+        "name": "stop",
+        "func": "msg.payload = \"stop\\0\";\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 270,
+        "y": 380,
+        "wires": [
+            [
+                "0c4c5533ece89c7c"
+            ]
+        ]
+    }
+]

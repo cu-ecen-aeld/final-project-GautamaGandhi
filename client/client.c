@@ -33,6 +33,8 @@ int testfile_fd;      // Testfile File Descriptor
 int new_fd;           // File Descriptor used to receive and send data
 char *storage_buffer; // Pointer to storage buffer
 
+
+
 // Signal handler for SIGINT and SIGTERM signals
 void sig_handler(int signum)
 {

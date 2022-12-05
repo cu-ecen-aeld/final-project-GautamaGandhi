@@ -306,7 +306,7 @@ int main(int argc, char *argv[])
     hints.ai_socktype = SOCK_STREAM;
     hints.ai_flags = AI_PASSIVE;
 
-    if ((status = getaddrinfo("10.0.0.143", "9000", &hints, &servinfo)) != 0)
+    if ((status = getaddrinfo("127.0.0.1", "9000", &hints, &servinfo)) != 0)
     {
         printf("Error in getting addrinfo! Error number is %d\n", errno);
         return -1;
@@ -355,7 +355,7 @@ int main(int argc, char *argv[])
 			}
 
 			// 15 frames /sec
-			// usleep(1000000 / 15);
+			usleep(1000000 / 120);
 		}
     }
 
