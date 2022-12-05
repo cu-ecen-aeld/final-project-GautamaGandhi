@@ -28,10 +28,10 @@
  */
 
 /*
-* main.c: Socket Client code for LED matrix render
-* Reference: https://github.com/jgarff/rpi_ws281x
+* Name: main.c
+* Description: This file contains the socket client code for the AESD final project titled :Image streaming and capturing. The LED matrix library
+* 			   has been leveraged for this. The socket client and multithreaded implementation has been build upon this.
 * Modified by: Gautama Gandhi
-*
 */
 
 
@@ -48,27 +48,17 @@ static char VERSION[] = "XX.YY.ZZ";
 #include <sys/mman.h>
 #include <signal.h>
 #include <stdarg.h>
-#include <getopt.h>
-
-#include <stdio.h>
-#include <sys/types.h>
 #include <sys/socket.h>
 #include <errno.h>
 #include <syslog.h>
 #include <netdb.h>
-#include <string.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <fcntl.h>
-#include <signal.h>
 #include <linux/fs.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <netdb.h>
 #include <time.h>
-
+#include <pthread.h>
+#include <semaphore.h>
 
 #include "clk.h"
 #include "gpio.h"
@@ -77,7 +67,6 @@ static char VERSION[] = "XX.YY.ZZ";
 #include "version.h"
 
 #include "ws2811.h"
-
 
 #define ARRAY_SIZE(stuff)       (sizeof(stuff) / sizeof(stuff[0]))
 
@@ -128,9 +117,26 @@ ws2811_t ledstring =
 ws2811_led_t *matrix;
 
 static uint8_t running = 1;
+static uint8_t running_mgmt = 1;
 
 // Unsigned 32 bit led_matrix array to represent the LEDs
 uint32_t led_matrix[LED_COUNT]; 
+
+// Global variables for the Management Socket connected to the OpenWRT server
+int mgmt_fd;
+const char *openwrt_server_ip_addr = "192.168.1.1";
+const char *openwrt_port_num = "9998";
+struct addrinfo *mgmtservinfo; // Points to results
+
+pthread_t client_thread_id; // Client Thread
+
+int is_client_running = 0; // Variable to indicate if the client is running
+
+// Render client socket information
+int client_socketfd;
+struct addrinfo *clientservinfo; // Points to results
+const char *camera_server_ip_addr = "192.168.2.163";
+const char *camera_server_port_num = "9000";
 
 //Function to process the input array and assign values for the LED matrix
 void process_array(unsigned char *input_array, int array_size)
@@ -168,6 +174,14 @@ void matrix_clear(void)
             matrix[y * width + x] = 0;
         }
     }
+}
+
+// Function to display the color "Blue" on every LED
+void test_matrix(void)
+{
+	for (int i = 0; i < 256; i++) {
+		matrix[i] = 0x00000020;
+	}
 }
 
 // Fill Matrix function for an 8x8 LED Matrix strip
@@ -259,10 +273,12 @@ static void sig_handler(int signum)
 {
 	(void)(signum);
 	if (signum == SIGINT)
-        printf("Caught signal SIGINT, exiting");
+        printf("Caught signal SIGINT, exiting\n");
     else if (signum == SIGTERM)
-        printf("Caught signal SIGTERM, exiting");
+        printf("Caught signal SIGTERM, exiting\n");
     running = 0;
+	running_mgmt = 0;
+	clear_on_exit = 1;
 }
 
 static void setup_handlers(void)
@@ -276,75 +292,37 @@ static void setup_handlers(void)
     sigaction(SIGTERM, &sa, NULL);
 }
 
-int main(int argc, char *argv[])
+/************************************************
+	MULTITHREAD LOGIC START
+*************************************************/
+
+void *render_thread(void *arg)
 {
+	ws2811_return_t ret;
 
-	printf("Socket Client\n");
+	unsigned char render_buffer[INPUT_BUFFER_SIZE];
 
-	unsigned char *image_buffer;
+    int connect_status = connect(client_socketfd, clientservinfo->ai_addr, clientservinfo->ai_addrlen);
 
-    ws2811_return_t ret;
-
-    sprintf(VERSION, "%d.%d.%d", VERSION_MAJOR, VERSION_MINOR, VERSION_MICRO);
-
-    matrix = malloc(sizeof(ws2811_led_t) * width * height);
-
-    setup_handlers();
-
-    if ((ret = ws2811_init(&ledstring)) != WS2811_SUCCESS)
-    {
-        fprintf(stderr, "ws2811_init failed: %s\n", ws2811_get_return_t_str(ret));
-        return ret;
-    }
-
-    int status;
-    struct addrinfo hints;
-    struct addrinfo *servinfo; // Points to results
-
-    memset(&hints, 0, sizeof(hints)); // Empty struct
-    hints.ai_family = AF_INET;
-    hints.ai_socktype = SOCK_STREAM;
-    hints.ai_flags = AI_PASSIVE;
-
-    if ((status = getaddrinfo("10.0.0.143", "9000", &hints, &servinfo)) != 0)
-    {
-        printf("Error in getting addrinfo! Error number is %d\n", errno);
-        return -1;
-    }
-
-    // Socket SETUP begin
-    // Getting a socketfd
-    int socketfd = socket(servinfo->ai_family, servinfo->ai_socktype, servinfo->ai_protocol);
-
-    if (socketfd == -1)
-    {
-        printf("Error creating socket! Error number is %d\n", errno);
-        return -1;
-    }
-
-    unsigned char buffer[INPUT_BUFFER_SIZE];
-
-    int connect_status = connect(socketfd, servinfo->ai_addr, servinfo->ai_addrlen);
-
-	freeaddrinfo(servinfo);
+	freeaddrinfo(clientservinfo);
 
 	if (connect_status == -1) {
-		printf("Error in connection!\n");
+		printf("Error in connecting to the camera server!\n");
 	}
 
 	if (connect_status == 0) {
-		printf("Connection to server successfull.\n");
+		printf("Connection to camera server successful.\n");
 	}
 
     while (running)
     {
 		// bytes_received stores the number of bytes received using the recv system call from the socket
-        int bytes_received = recv(socketfd, buffer, sizeof(buffer), 0);
+        int bytes_received = recv(client_socketfd, render_buffer, sizeof(render_buffer), 0);
 
 		// Only process the array and render the image if bytes received is equal to 768 bytes
 		if (bytes_received == INPUT_BUFFER_SIZE) {
 
-			process_array(buffer, INPUT_BUFFER_SIZE);
+			process_array(render_buffer, INPUT_BUFFER_SIZE);
 			fill_matrix_16x16();
 			matrix_render();
 
@@ -355,13 +333,125 @@ int main(int argc, char *argv[])
 			}
 
 			// 15 frames /sec
-			// usleep(1000000 / 15);
+			usleep(1000000 / 120);
 		}
     }
+}
 
-	close(socketfd);
+// Setting management socket that connects to OpenWRT server
+void setup_management_socket()
+{
+	int status;
+    struct addrinfo hints;
+    // struct addrinfo *servinfo; // Points to results
 
-    if (clear_on_exit) {
+    memset(&hints, 0, sizeof(hints)); // Empty struct
+    hints.ai_family = AF_INET;
+    hints.ai_socktype = SOCK_STREAM;
+    hints.ai_flags = AI_PASSIVE;
+
+	// Connecting to OpenWRT server
+    if ((status = getaddrinfo(openwrt_server_ip_addr, openwrt_port_num, &hints, &mgmtservinfo)) != 0) {
+        printf("Error in getting addrinfo! Error number is %d\n", errno);
+    }
+
+    mgmt_fd = socket(mgmtservinfo->ai_family, mgmtservinfo->ai_socktype, mgmtservinfo->ai_protocol);
+
+    if (mgmt_fd == -1)
+    {
+        printf("Error creating socket! Error number is %d\n", errno);
+		exit(1);
+    }
+}
+
+// Setup client render socket
+void setup_client_socket()
+{
+	int status;
+    struct addrinfo hints;
+
+    memset(&hints, 0, sizeof(hints)); // Empty struct
+    hints.ai_family = AF_INET;
+    hints.ai_socktype = SOCK_STREAM;
+    hints.ai_flags = AI_PASSIVE;
+
+	// Connecting to Camera server
+	// 
+    if ((status = getaddrinfo(camera_server_ip_addr, camera_server_port_num, &hints, &clientservinfo)) != 0) {
+        printf("Error in getting addrinfo! Error number is %d\n", errno);
+        //return NULL;
+    }
+
+    client_socketfd = socket(clientservinfo->ai_family, clientservinfo->ai_socktype, clientservinfo->ai_protocol);
+
+    if (client_socketfd == -1)
+    {
+        printf("Error creating socket! Error number is %d\n", errno);
+		exit(1);
+    }
+
+	is_client_running = 1;
+}
+
+// Function to cleanup the socket client connected to the camera server
+void close_client_socket()
+{
+	close(client_socketfd);
+	pthread_cancel(client_thread_id);
+	pthread_join(client_thread_id, NULL);
+	is_client_running = 0;
+}
+
+int main(int argc, char *argv[])
+{
+
+	printf("Socket Client\n");
+
+	setup_handlers();
+
+	ws2811_return_t ret;
+
+    matrix = malloc(sizeof(ws2811_led_t) * width * height);
+
+    if ((ret = ws2811_init(&ledstring)) != WS2811_SUCCESS) {
+        fprintf(stderr, "ws2811_init failed: %s\n", ws2811_get_return_t_str(ret));
+        return ret;
+    }
+
+	setup_management_socket();
+
+	int connect_status = connect(mgmt_fd, mgmtservinfo->ai_addr, mgmtservinfo->ai_addrlen);
+
+	if (connect_status == -1) {
+		printf("Failed to connect to the OpenWRT server\n");
+		// return -1;
+	} 
+
+	unsigned char buffer[50];
+	while (running_mgmt) {
+		// bytes_received stores the number of bytes received using the recv system call from the mgmt socket
+        int bytes_received = recv(mgmt_fd, buffer, sizeof(buffer), 0);
+
+		// Only process the array and render the image if bytes received is equal to 768 bytes
+		if (bytes_received > 0) {
+			if (!strcasecmp(buffer, "start")) {
+				if (!is_client_running) {
+					setup_client_socket();
+					int status = pthread_create(&client_thread_id, NULL, render_thread, (void *)0);
+					if (status == -1) {
+						printf("Unable to create thread\n");
+					}
+				}	
+			} 
+			else if (!strcasecmp(buffer, "stop")) {
+				if (is_client_running) {
+					close_client_socket();
+				}	
+			}
+		}
+	}
+
+	if (clear_on_exit) {
 		matrix_clear();
 		matrix_render();
 		ws2811_render(&ledstring);
