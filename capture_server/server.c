@@ -1,3 +1,12 @@
+
+/***************************************************************************
+ * AESD Final Project
+ * Author:  Chinmay Shalawadi 
+ * Institution: University of Colorado Boulder
+ * Mail id: chsh1552@colorado.edu
+ * References: AESDSocket,Wikipedia, ChatGPT & stb header library
+ ***************************************************************************/
+
 #include <stdio.h>
 #include <sys/types.h>
 #include <sys/socket.h>
