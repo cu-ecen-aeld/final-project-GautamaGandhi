@@ -59,6 +59,7 @@ pthread_t camthread;
 #define SCHED_POLICY SCHED_FIFO
 
 
+
 //-------------------------------------setup_mansocket--------------------------------------------------------------------------
 void setup_mansocket()
 {
@@ -207,7 +208,7 @@ int main(int argc, char **argv)
     while (1)
     {
 
-        int bytes_received = recv(man_socketfd, buffer, 768, 0);
+        int bytes_received = recv(man_socketfd, buffer, 50, 0);
 
         if (bytes_received == 0)
         {
