@@ -1,0 +1,1 @@
+This is a printable .stl for a 16x16 WS2812 LED Matrix, PCB dimensions of 161mm x 161mm.
