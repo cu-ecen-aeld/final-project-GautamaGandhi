@@ -190,14 +190,18 @@ exit:
 int main(int argc, char **argv)
 {
     printf("Initializing Camera and Allocating Buffers... \n");
+    printf("test\n");
 
     signal(SIGINT, sig_handler);
     signal(SIGTERM, sig_handler);
     signal(SIGPIPE, SIG_IGN);
 
+    printf("Before mgmt socket\n");
     setup_mansocket();
+    printf("Before camera socket\n");
     setup_camsocket();
 
+    printf("Before mgmt Server connect\n");
     char buffer[50];
     man_newfd = connect(man_socketfd, man_servinfo->ai_addr, man_servinfo->ai_addrlen);
 
