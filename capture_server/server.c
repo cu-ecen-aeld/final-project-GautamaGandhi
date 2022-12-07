@@ -12,7 +12,6 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <errno.h>
-#include <syslog.h>
 #include <netdb.h>
 #include <string.h>
 #include <stdlib.h>
@@ -135,6 +134,7 @@ void setup_camsocket()
         // return -1;
     }
 }
+
 //-------------------------------------*cam_server--------------------------------------------------------------------------
 void *cam_server(void *threadp)
 {
@@ -182,7 +182,7 @@ accept:
     }
 
 exit:
-    syslog(LOG_DEBUG, "Closed connection from %s", address_string);
+    printf("Closed connection from %s", address_string);
 
     pthread_exit((void *)0);
 }
@@ -191,17 +191,18 @@ exit:
 int main(int argc, char **argv)
 {
     printf("Initializing Camera and Allocating Buffers... \n");
-
-    // Opening Log to use syslog
-    openlog(NULL, 0, LOG_USER);
+    printf("test\n");
 
     signal(SIGINT, sig_handler);
     signal(SIGTERM, sig_handler);
     signal(SIGPIPE, SIG_IGN);
 
+    printf("Before mgmt socket\n");
     setup_mansocket();
+    printf("Before camera socket\n");
     setup_camsocket();
 
+    printf("Before mgmt Server connect\n");
     char buffer[50];
     man_newfd = connect(man_socketfd, man_servinfo->ai_addr, man_servinfo->ai_addrlen);
 
@@ -252,15 +253,14 @@ void sig_handler(int signum)
     int status = close(data_socketfd);
     if (status == -1)
     {
-        syslog(LOG_ERR, "Unable to close socket FD with error %d", errno);
+        printf("Unable to close socket FD with error %d", errno);
     }
 
     status = close(data_newfd);
     if (status == -1)
     {
-        syslog(LOG_ERR, "Unable to close data_newfd FD with error %d", errno);
+        printf("Unable to close data_newfd FD with error %d", errno);
     }
-    closelog();
     exit(EXIT_SUCCESS);
 }
 
