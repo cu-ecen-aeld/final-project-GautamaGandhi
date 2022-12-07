@@ -83,6 +83,7 @@ static char VERSION[] = "XX.YY.ZZ";
 #define LED_COUNT               (WIDTH * HEIGHT)
 
 #define INPUT_BUFFER_SIZE 768
+#define MGMT_BUFFER_SIZE 50
 
 int width = WIDTH;
 int height = HEIGHT;
@@ -339,9 +340,9 @@ void *render_thread(void *arg)
 }
 
 // Setting management socket that connects to OpenWRT server
-void setup_management_socket()
+int setup_management_socket()
 {
-	int status;
+	int status = 0;
     struct addrinfo hints;
     // struct addrinfo *servinfo; // Points to results
 
@@ -353,6 +354,7 @@ void setup_management_socket()
 	// Connecting to OpenWRT server
     if ((status = getaddrinfo(openwrt_server_ip_addr, openwrt_port_num, &hints, &mgmtservinfo)) != 0) {
         printf("Error in getting addrinfo! Error number is %d\n", errno);
+		return status;
     }
 
     mgmt_fd = socket(mgmtservinfo->ai_family, mgmtservinfo->ai_socktype, mgmtservinfo->ai_protocol);
@@ -360,14 +362,15 @@ void setup_management_socket()
     if (mgmt_fd == -1)
     {
         printf("Error creating socket! Error number is %d\n", errno);
-		exit(1);
+		status = -1;
     }
+	return status;
 }
 
 // Setup client render socket
-void setup_client_socket()
+int setup_client_socket()
 {
-	int status;
+	int status = 0;
     struct addrinfo hints;
 
     memset(&hints, 0, sizeof(hints)); // Empty struct
@@ -379,7 +382,7 @@ void setup_client_socket()
 	// 
     if ((status = getaddrinfo(camera_server_ip_addr, camera_server_port_num, &hints, &clientservinfo)) != 0) {
         printf("Error in getting addrinfo! Error number is %d\n", errno);
-        //return NULL;
+        return status;
     }
 
     client_socketfd = socket(clientservinfo->ai_family, clientservinfo->ai_socktype, clientservinfo->ai_protocol);
@@ -387,10 +390,16 @@ void setup_client_socket()
     if (client_socketfd == -1)
     {
         printf("Error creating socket! Error number is %d\n", errno);
-		exit(1);
+		status = -1;
     }
 
-	is_client_running = 1;
+	status = pthread_create(&client_thread_id, NULL, render_thread, (void *)0);
+	if (status == -1) {
+		printf("Unable to create thread\n");
+	}
+
+	is_client_running = 1; // Updating the client running flag when the socket is created 
+	return status;
 }
 
 // Function to cleanup the socket client connected to the camera server
@@ -418,16 +427,21 @@ int main(int argc, char *argv[])
         return ret;
     }
 
-	setup_management_socket();
+	int return_status = setup_management_socket();
+	if (return_status == -1) {
+		printf("Error setting up management socket; exiting\n");
+		goto cleanup;
+	}
 
 	int connect_status = connect(mgmt_fd, mgmtservinfo->ai_addr, mgmtservinfo->ai_addrlen);
 
 	if (connect_status == -1) {
 		printf("Failed to connect to the OpenWRT server\n");
-		// return -1;
+		goto close_socket;
 	} 
 
-	unsigned char buffer[50];
+	unsigned char buffer[MGMT_BUFFER_SIZE]; // Managgement buffer
+
 	while (running_mgmt) {
 		// bytes_received stores the number of bytes received using the recv system call from the mgmt socket
         int bytes_received = recv(mgmt_fd, buffer, sizeof(buffer), 0);
@@ -436,10 +450,10 @@ int main(int argc, char *argv[])
 		if (bytes_received > 0) {
 			if (!strcasecmp(buffer, "start")) {
 				if (!is_client_running) {
-					setup_client_socket();
-					int status = pthread_create(&client_thread_id, NULL, render_thread, (void *)0);
+					int status = setup_client_socket();
 					if (status == -1) {
-						printf("Unable to create thread\n");
+						printf("Unable to setup client socket\n");
+						continue;
 					}
 				}	
 			} 
@@ -457,7 +471,8 @@ int main(int argc, char *argv[])
 		ws2811_render(&ledstring);
     }
 
-    ws2811_fini(&ledstring);
+	close_socket: close(mgmt_fd);
+    cleanup: ws2811_fini(&ledstring);
 
     return 0;
 }

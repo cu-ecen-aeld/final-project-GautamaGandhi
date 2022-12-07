@@ -1,6 +1,6 @@
 /***************************************************************************
  * AESD Final Project
- * Author: Starter code by Sam Siewert(RTES), Modifications + new code by Chinmay Shalawadi 
+ * Author: Starter code by Sam Siewert(RTES), Modifications + new code by Chinmay Shalawadi
  * Institution: University of Colorado Boulder
  * Mail id: chsh1552@colorado.edu
  * References: Wikipedia, ChatGPT & stb header library
@@ -10,8 +10,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
-#include <getopt.h> 
-#include <fcntl.h> 
+#include <getopt.h>
+#include <fcntl.h>
 #include <unistd.h>
 #include <errno.h>
 #include <sys/stat.h>
@@ -20,6 +20,7 @@
 #include <sys/mman.h>
 #include <sys/ioctl.h>
 #include "seq.h"
+#include "server.h"
 
 #define RGB
 
@@ -35,7 +36,7 @@
 #define HRES 320
 #define VRES 240
 
-//Changes to make image look better on matrix
+// Changes to make image look better on matrix
 #define LUMINENCE_OFFSET (30)
 #define LUMINENCE_THRESHOLD (125)
 
@@ -76,7 +77,7 @@ static int xioctl(int fh, int request, void *arg)
 }
 //-------------------------------------yuv2rgb--------------------------------------------------------------------------
 //
-//This code has been modified for color adjustments for LED matrix
+// This code has been modified for color adjustments for LED matrix
 //
 // This is probably the most acceptable conversion from camera YUYV to RGB
 //
@@ -96,6 +97,9 @@ static int xioctl(int fh, int request, void *arg)
 void yuv2rgb(int y, int u, int v, unsigned char *r, unsigned char *g, unsigned char *b)
 {
     int r1, g1, b1, c;
+
+    if (get_luma())
+        y = 0;
 
     // replaces floating point coefficients
     if (LUMINENCE_OFFSET && y > LUMINENCE_THRESHOLD)
@@ -145,7 +149,7 @@ static void process_image(const void *p, int size)
     unsigned char *pptr = (unsigned char *)p;
     if (fmt.fmt.pix.pixelformat == V4L2_PIX_FMT_YUYV)
     {
-         for (i = 0, newi = 0; i < size; i = i + 4, newi = newi + 6)
+        for (i = 0, newi = 0; i < size; i = i + 4, newi = newi + 6)
         {
             y_temp = (int)pptr[i];
             u_temp = (int)pptr[i + 1];

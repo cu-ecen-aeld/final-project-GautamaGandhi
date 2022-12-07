@@ -37,33 +37,34 @@
 
 void initialize_camera(void);
 void shutdown_camera(void);
-void setup_socket(void);
 void sig_handler(int signum);
-void setup_mansocket();
+int setup_mansocket();
 void set_scheduler(int cpu_id, int prio_offset);
 void *cam_server(void *threadp);
-void setup_camsocket();
+int setup_camsocket();
+int get_luma();
 
 // Global Variables
-int data_socketfd; 
-int data_newfd;    
+int data_socketfd;
+int data_newfd;
 
-int man_socketfd; 
-int man_newfd;    
+int man_socketfd;
+int man_newfd;
+
 int camera_on = 0;
 
+int luma = 0;
+
 struct addrinfo *man_servinfo;
+
 pthread_t camthread;
 
 #define SCHED_POLICY SCHED_FIFO
 
-
-
 //-------------------------------------setup_mansocket--------------------------------------------------------------------------
-void setup_mansocket()
+int setup_mansocket()
 {
-
-    int status;
+    int status, retval = 0;
     struct addrinfo hints;
 
     memset(&hints, 0, sizeof(hints));
@@ -74,7 +75,7 @@ void setup_mansocket()
     if ((status = getaddrinfo("192.168.1.1", "9999", &hints, &man_servinfo)) != 0)
     {
         printf("Error in getting addrinfo! Error number is %d\n", errno);
-        // return -1;
+        retval = -1;
     }
 
     man_socketfd = socket(man_servinfo->ai_family, man_servinfo->ai_socktype, man_servinfo->ai_protocol);
@@ -82,14 +83,16 @@ void setup_mansocket()
     if (man_socketfd == -1)
     {
         printf("Error creating socket! Error number is %d\n", errno);
-        // return -1;
+        retval = -1;
     }
+
+    return retval;
 }
 
 //-------------------------------------setup_camsocket--------------------------------------------------------------------------
-void setup_camsocket()
+int setup_camsocket()
 {
-    int yes = 1;
+    int yes = 1, retval = 0;
     data_socketfd = socket(AF_INET, SOCK_STREAM, 0);
 
     if (data_socketfd == -1)
@@ -110,20 +113,20 @@ void setup_camsocket()
     if ((status = getaddrinfo(NULL, "9000", &hints, &servinfo)) != 0)
     {
         printf("Error in getaddrinfo -> %d\n", errno);
-        // return -1;
+        retval = -1;
     }
 
     if (setsockopt(data_socketfd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof yes) == -1)
     {
         printf("Error in sersockopt -> %d\n", errno);
-        // return -1;
+        retval = -1;
     }
 
     status = bind(data_socketfd, servinfo->ai_addr, sizeof(struct addrinfo));
     if (status == -1)
     {
         printf("Error bindi -> %d\n", errno);
-        // return -1;
+        retval = -1;
     }
 
     freeaddrinfo(servinfo);
@@ -131,8 +134,10 @@ void setup_camsocket()
     if (status == -1)
     {
         printf("Error listening to connections! Error number is %d\n", errno);
-        // return -1;
+        retval = -1;
     }
+
+    return retval;
 }
 
 //-------------------------------------*cam_server--------------------------------------------------------------------------
@@ -193,34 +198,39 @@ int main(int argc, char **argv)
     printf("Initializing Camera and Allocating Buffers... \n");
     printf("test\n");
 
+    // Registering Singnal handlers
     signal(SIGINT, sig_handler);
     signal(SIGTERM, sig_handler);
+
+    // To avoid being terminated by SIG_PIPE, ignore it
     signal(SIGPIPE, SIG_IGN);
 
-    printf("Before mgmt socket\n");
-    setup_mansocket();
-    printf("Before camera socket\n");
-    setup_camsocket();
+    if (setup_mansocket() < 0)
+        printf("ERR in setting up Management Socket\n");
 
-    printf("Before mgmt Server connect\n");
+    if (setup_camsocket() < 0)
+        printf("ERR in setting up Camera socket\n");
+
     char buffer[50];
+
+reconnect_man:
     man_newfd = connect(man_socketfd, man_servinfo->ai_addr, man_servinfo->ai_addrlen);
 
     while (1)
     {
-
         int bytes_received = recv(man_socketfd, buffer, 50, 0);
 
         if (bytes_received == 0)
         {
-            printf("bytes0\n");
+            goto reconnect_man;
         }
 
         if (bytes_received > 0)
         {
             if (!strcasecmp(&buffer[0], "start"))
             {
-                pthread_create(&camthread, NULL, cam_server, (void *)0);
+                if (!camera_on)
+                    pthread_create(&camthread, NULL, cam_server, (void *)0);
             }
 
             if (!strcasecmp(&buffer[0], "stop"))
@@ -229,14 +239,27 @@ int main(int argc, char **argv)
                 pthread_cancel(camthread);
                 pthread_join(camthread, NULL);
                 shutdown_camera();
-                // close(data_);
+            }
+
+            if (!strcasecmp(&buffer[0], "G"))
+            {
+                if (luma)
+                    luma = 0;
+                else
+                    luma = 1;
             }
         }
     }
 
     freeaddrinfo(man_servinfo);
+    close(man_socketfd);
+    close(data_socketfd);
 
     return 0;
+}
+
+int get_luma(){
+    return luma;
 }
 
 //-------------------------------------sig_handler--------------------------------------------------------------------------
