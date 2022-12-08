@@ -403,12 +403,27 @@ int setup_client_socket()
 }
 
 // Function to cleanup the socket client connected to the camera server
-void close_client_socket()
+int close_client_socket()
 {
-	close(client_socketfd);
-	pthread_cancel(client_thread_id);
-	pthread_join(client_thread_id, NULL);
+	int status = 0;
+	status = close(client_socketfd);
+	// Exit in case of failure
+	if (status == -1) {
+		printf("Error closing socket\n");
+		goto ret;
+	}
+	status = pthread_cancel(client_thread_id);
+	if (status != 0) {
+		printf("Error cancelling thread\n");
+		goto ret;
+	}
+	status = pthread_join(client_thread_id, NULL);
+	if (status != 0) {
+		printf("Error joining thread\n");
+		goto ret;
+	}
 	is_client_running = 0;
+	ret: return status;
 }
 
 int main(int argc, char *argv[])
@@ -453,13 +468,17 @@ int main(int argc, char *argv[])
 					int status = setup_client_socket();
 					if (status == -1) {
 						printf("Unable to setup client socket\n");
-						continue;
+						goto close_socket;
 					}
 				}	
 			} 
 			else if (!strcasecmp(buffer, "stop")) {
 				if (is_client_running) {
-					close_client_socket();
+					int status = close_client_socket();
+					if (status == -1) {
+						printf("Unable to close client socket\n");
+						goto close_socket;
+					}
 				}	
 			}
 		}
