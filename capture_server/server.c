@@ -45,21 +45,21 @@ int setup_camsocket();
 int get_luma();
 
 // Global Variables
+
+// data socket variables
 int data_socketfd;
 int data_newfd;
 
+// management socket variables
 int man_socketfd;
 int man_newfd;
 
+// flags
 int camera_on = 0;
-
 int luma = 0;
 
 struct addrinfo *man_servinfo;
-
 pthread_t camthread;
-
-#define SCHED_POLICY SCHED_FIFO
 
 //-------------------------------------setup_mansocket--------------------------------------------------------------------------
 int setup_mansocket()
@@ -98,7 +98,7 @@ int setup_camsocket()
     if (data_socketfd == -1)
     {
         printf("Error creating socket! Error number is %d\n", errno);
-        // return -1;
+        retval = -1;
     }
 
     int status;
@@ -143,16 +143,15 @@ int setup_camsocket()
 //-------------------------------------*cam_server--------------------------------------------------------------------------
 void *cam_server(void *threadp)
 {
-    struct sockaddr_storage test_addr;
-
-    socklen_t addr_size = sizeof test_addr;
     int bytes_sent;
+    struct sockaddr_storage test_addr;
+    socklen_t addr_size = sizeof test_addr;
 
     char address_string[INET_ADDRSTRLEN];
     unsigned char *image_buffer;
 
     printf("Server Started, waiting for connections \n");
-
+   
     initialize_camera();
 
 accept:
@@ -173,8 +172,6 @@ accept:
             image_buffer = get_processed_image_data();
 
         bytes_sent = send(data_newfd, image_buffer, 768, 0);
-
-        // printf("Bytes Sent -> %d \n", bytes_sent);
 
         if (bytes_sent == -1)
         {
@@ -250,18 +247,13 @@ reconnect_man:
             }
         }
     }
-
-    freeaddrinfo(man_servinfo);
-    close(man_socketfd);
-    close(data_socketfd);
-
+    
     return 0;
 }
-
+//-------------------------------------get_luma--------------------------------------------------------------------------
 int get_luma(){
     return luma;
 }
-
 //-------------------------------------sig_handler--------------------------------------------------------------------------
 void sig_handler(int signum)
 {
@@ -269,8 +261,6 @@ void sig_handler(int signum)
         printf("Caught signal SIGINT, exiting");
     else if (signum == SIGTERM)
         printf("Caught signal SIGTERM, exiting");
-
-    // shutdown_camera();
 
     // Closing data_socketfd FD
     int status = close(data_socketfd);
@@ -284,6 +274,10 @@ void sig_handler(int signum)
     {
         printf("Unable to close data_newfd FD with error %d", errno);
     }
+    
+    freeaddrinfo(man_servinfo);
+    close(man_socketfd);
+    
     exit(EXIT_SUCCESS);
 }
 
