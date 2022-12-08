@@ -333,7 +333,7 @@ void *render_thread(void *arg)
 				break;
 			}
 
-			// 15 frames /sec
+			// Managing Frame Rate using a delay
 			usleep(1000000 / 120);
 		}
     }
