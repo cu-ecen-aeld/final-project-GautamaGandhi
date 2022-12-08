@@ -11,5 +11,6 @@
 #define _SERVER_H_
 void initialize_camera();
 void shutdown_camera();
+int get_luma();
 
 #endif
